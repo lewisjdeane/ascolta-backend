@@ -14,6 +14,7 @@ import {
     ConversationType,
     CONVERSATION_TYPES,
     Question,
+    ResultMonad,
 } from "../types/types"
 import { Language, LANGUAGES } from "../audio/voices"
 import { getRandomCharacter } from "../db/character-controller"
@@ -50,13 +51,16 @@ router.get("/new", async function (req, res, next) {
         res.send("Error: No conversation length specified")
     }
 
-    try {
-        const conversation: ConversationDocument =
-            await generateFullConversation(language, length)
+    const result: ResultMonad<ConversationDocument> =
+        await generateFullConversation(language, length)
+
+    if (result.isSuccess) {
+        const conversation = result.getSuccessData()
         const json = JSON.stringify(conversation)
         res.send(json)
-    } catch (e: any) {
-        res.send("Error: Failed to generate conversation")
+    } else {
+        const responseCode = result.getFailureCode()
+        res.sendStatus(responseCode)
     }
 })
 
@@ -140,7 +144,7 @@ function getLengthFromRequest(
 async function generateFullConversation(
     language: Language,
     conversationType: ConversationType
-): Promise<ConversationDocument> {
+): Promise<ResultMonad<ConversationDocument>> {
     console.log(`Generating a conversation in ${language.readable}`)
 
     // Get two characters.
@@ -151,18 +155,26 @@ async function generateFullConversation(
     )
 
     // Generate plaintext conversation.
-    const conversationPlaintext: string = await generatePlaintextConversation(
-        language,
-        characters,
-        conversationType.turnCount
-    )
+    const conversationPlaintextResult: ResultMonad<string> =
+        await generatePlaintextConversation(
+            language,
+            characters,
+            conversationType.turnCount
+        )
+
+    if (conversationPlaintextResult.isFailure) {
+        console.log(`Hit error generating plaintext conversation`)
+        return conversationPlaintextResult.cloneFailure()
+    }
+
+    const conversationPlaintext = conversationPlaintextResult.getSuccessData()
     console.log(
         `Generated plaintext conversation:\n\n${conversationPlaintext}\n`
     )
 
     // Get questions.
     console.log("Generate questions for conversation")
-    const questionsPromise: Promise<Question[]> =
+    const questionsPromise: Promise<ResultMonad<Question[]>> =
         generateQuestionsForConversation(
             language,
             conversationPlaintext,
@@ -170,19 +182,29 @@ async function generateFullConversation(
         )
 
     // Get JSON conversation.
-    const conversationJsonPromise: Promise<Conversation> = parseConversation(
-        conversationPlaintext
-    )
+    const conversationJsonPromise: Promise<ResultMonad<Conversation>> =
+        parseConversation(conversationPlaintext)
 
     const [questionsResult, conversationJsonResult] = await Promise.all([
         questionsPromise,
         conversationJsonPromise,
     ])
 
+    if (questionsResult.isFailure) {
+        console.log(`Hit error generating questions for conversation`)
+        return questionsResult.cloneFailure()
+    } else if (conversationJsonResult.isFailure) {
+        console.log(`Hit error parsing conversation into JSON`)
+        return conversationJsonResult.cloneFailure()
+    }
+
+    const questions = questionsResult.getSuccessData()
+    const conversationJson = conversationJsonResult.getSuccessData()
+
     // Generate audio for conversations parts and add them in.
     const audioLink: string = await generateAudioForConversation(
         characters,
-        conversationJsonResult.parts
+        conversationJson.parts
     )
 
     console.log(`Generated audio for conversation: ${audioLink}`)
@@ -190,11 +212,11 @@ async function generateFullConversation(
     // Stick in shiny JSON object with characters.
     const document: ConversationDocument = {
         characters: characters,
-        parts: conversationJsonResult.parts,
-        questions: questionsResult,
+        parts: conversationJson.parts,
+        questions: questions,
         audio: audioLink,
-        location: conversationJsonResult.location,
-        title: conversationJsonResult.title,
+        location: conversationJson.location,
+        title: conversationJson.title,
         language_code: language.code,
         length: conversationType.param,
     }
@@ -203,7 +225,7 @@ async function generateFullConversation(
 
     insertConversation(document)
 
-    return document
+    return ResultMonad.success(document)
 }
 
 async function getRandomCharacters(

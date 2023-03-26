@@ -11,6 +11,7 @@ import {
     CharacterWithLanguageConfig,
     Conversation,
     Question,
+    ResultMonad,
 } from "../types/types"
 import {
     GENERATE_CHARACTER_REQUEST_PARAMS,
@@ -32,7 +33,7 @@ export async function generatePlaintextConversation(
     language: Language,
     characters: CharacterWithLanguageConfig[],
     turnCount: number
-): Promise<string> {
+): Promise<ResultMonad<string>> {
     // Get the prompt to send to the API, needs to be in the ChatCompletion format described here: https://platform.openai.com/docs/guides/chat/introduction
     const messages = getGenerateConversationPromptMessages(
         language,
@@ -47,7 +48,7 @@ export async function generatePlaintextConversation(
     )
 
     // Don't worry about the role part of the response, we just want the content.
-    return response.content
+    return response.mapSuccess((success) => success.content)
 }
 
 /**
@@ -60,7 +61,7 @@ export async function generatePlaintextConversation(
 export async function generateCharacters(
     language: Language,
     count: number = 2
-): Promise<Character[]> {
+): Promise<ResultMonad<Character[]>> {
     // Get the prompt that we'll use to generate the characters.
     const message = getGenerateCharactersPromptMessage(language, count)
 
@@ -70,14 +71,16 @@ export async function generateCharacters(
         [message]
     )
 
-    try {
-        // We've asked the API to give us back some JSON - parse it to make sure it's the format we wanted.
-        const characters: Characters = JSON.parse(response.content)
-        return characters.characters
-    } catch (e: any) {
-        console.log("Failed to parse response from API")
-        return []
-    }
+    return response.mapSuccess((success) => {
+        try {
+            // We've asked the API to give us back some JSON - parse it to make sure it's the format we wanted.
+            const characters: Characters = JSON.parse(success.content)
+            return characters.characters
+        } catch (e: any) {
+            console.log("Failed to parse response from API")
+            return []
+        }
+    })
 }
 
 /**
@@ -88,7 +91,7 @@ export async function generateCharacters(
  */
 export async function parseConversation(
     conversation: string
-): Promise<Conversation | null> {
+): Promise<ResultMonad<Conversation | null>> {
     // Get the prompt we will use to parse the conversation.
     const message = getParseConversationPromptMessage(conversation)
 
@@ -98,14 +101,16 @@ export async function parseConversation(
         [message]
     )
 
-    try {
-        // We've asked the API to give us back some JSON - parse it to make sure it's the format we wanted.
-        const conversation: Conversation = JSON.parse(response.content)
-        return conversation
-    } catch (e: any) {
-        console.log("Failed to parse response from API")
-        return null
-    }
+    return response.mapSuccess((success) => {
+        try {
+            // We've asked the API to give us back some JSON - parse it to make sure it's the format we wanted.
+            const conversation: Conversation = JSON.parse(success.content)
+            return conversation
+        } catch (e: any) {
+            console.log("Failed to parse response from API")
+            return null
+        }
+    })
 }
 
 /**
@@ -120,7 +125,7 @@ export async function generateQuestionsForConversation(
     language: Language,
     conversation: string,
     questionCount: number
-): Promise<Question[]> {
+): Promise<ResultMonad<Question[]>> {
     // Get the prompt we'll use to generate the questions.
     const message = getGenerateQuestionsPromptMessage(
         language,
@@ -134,12 +139,14 @@ export async function generateQuestionsForConversation(
         [message]
     )
 
-    try {
-        // We've asked the API to give us back some JSON - parse it to make sure it's the format we wanted.
-        const questions: Question[] = JSON.parse(response.content)
-        return questions
-    } catch (e: any) {
-        console.log("Failed to parse response from API")
-        return []
-    }
+    return response.mapSuccess((success) => {
+        try {
+            // We've asked the API to give us back some JSON - parse it to make sure it's the format we wanted.
+            const questions: Question[] = JSON.parse(success.content)
+            return questions
+        } catch (e: any) {
+            console.log("Failed to parse response from API")
+            return []
+        }
+    })
 }

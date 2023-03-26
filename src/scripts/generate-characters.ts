@@ -11,7 +11,14 @@ const language = PortuguesePortugal
 
 // Generate the given number of characters when the script is run.
 generateCharacters(language, NUM_CHARACTERS_TO_GENERATE).then(
-    async (characters) => finaliseCharacters(characters)
+    async (result) => {
+        if (result.isSuccess) {
+            const characters = result.getSuccessData()
+            finaliseCharacters(characters)
+        } else {
+            console.log("Hit error generating characters")
+        }
+    }
 )
 
 /**

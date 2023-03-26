@@ -3,7 +3,7 @@ import {
     ChatCompletionResponseMessage,
 } from "openai"
 import { Language } from "../audio/voices"
-import { CharacterWithLanguageConfig } from "../types/types"
+import { CharacterWithLanguageConfig, ResultMonad } from "../types/types"
 import { GENERATE_NEXT_CHAT_MESSAGE_REQUEST_PARAMS } from "./open-ai-api-config"
 import {
     callChatCompletionApi,
@@ -53,7 +53,7 @@ export async function seedNewLiveChat(
 export async function getLiveChatResponse(
     sessionId: string,
     userInput: string
-): Promise<ChatCompletionResponseMessage[]> {
+): Promise<ResultMonad<ChatCompletionResponseMessage[]>> {
     // Get the message history for this session.
     var messages: ChatCompletionResponseMessage[] = messageStore[sessionId]
 
@@ -64,12 +64,14 @@ export async function getLiveChatResponse(
     messageStore[sessionId] = messages
 
     // Generate a response from the OpenAI API and add it to message list.
-    const next = await callChatCompletionApi(
+    const result = await callChatCompletionApi(
         GENERATE_NEXT_CHAT_MESSAGE_REQUEST_PARAMS,
         messages
     )
-    const finalMessages = [...messages, next]
-    messageStore[sessionId] = finalMessages
 
-    return finalMessages
+    return result.mapSuccess((success) => {
+        const finalMessages = [...messages, success]
+        messageStore[sessionId] = finalMessages
+        return finalMessages
+    })
 }

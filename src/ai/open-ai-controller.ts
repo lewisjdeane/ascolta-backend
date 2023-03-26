@@ -5,6 +5,7 @@ import {
     OpenAIApi,
 } from "openai"
 import config from "../config/config"
+import { ResultMonad } from "../types/types"
 import { GptApiConfig } from "./open-ai-api-config"
 
 const configuration = new Configuration({ apiKey: config.OPEN_AI_API_KEY })
@@ -20,15 +21,19 @@ const openai = new OpenAIApi(configuration)
 export async function callChatCompletionApi(
     config: GptApiConfig,
     messages: ChatCompletionRequestMessage[]
-): Promise<ChatCompletionRequestMessage> {
-    const response = await openai.createChatCompletion({
-        model: config.model,
-        messages: messages,
-        temperature: config.temperature,
-        max_tokens: config.max_tokens,
-    })
-
-    return response.data.choices[0].message
+): Promise<ResultMonad<ChatCompletionRequestMessage>> {
+    try {
+        const response = await openai.createChatCompletion({
+            model: config.model,
+            messages: messages,
+            temperature: config.temperature,
+            max_tokens: config.max_tokens,
+        })
+        return ResultMonad.success(response.data.choices[0].message)
+    } catch (error) {
+        console.error(error)
+        return ResultMonad.failure(502)
+    }
 }
 
 /**

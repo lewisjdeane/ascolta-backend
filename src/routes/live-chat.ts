@@ -6,7 +6,10 @@ import {
 } from "../ai/live-chat-generation"
 import { Language, LANGUAGES } from "../audio/voices"
 import { getRandomCharacter } from "../db/character-controller"
-import { CharacterWithLanguageConfig } from "../types/types"
+import {
+    CharacterWithLanguageConfig,
+    ResultMonad,
+} from "../types/types"
 
 const router = express.Router()
 
@@ -55,20 +58,22 @@ router.post("/next", async function (req, res) {
     const userInput: string = decodeURIComponent(req.body.text)
 
     res.setHeader("Access-Control-Allow-Origin", "*")
-    try {
-        const messages: ChatCompletionResponseMessage[] = await getLiveChatResponse(
-            sessionId,
-            userInput
-        )
+    const result: ResultMonad<ChatCompletionResponseMessage[]> =
+        await getLiveChatResponse(sessionId, userInput)
+    if (result.isSuccess) {
+        const messages = result.getSuccessData()
         const liveConversation: LiveConversationState = {
             id: sessionId,
             messages: messages,
         }
         const json = JSON.stringify(liveConversation)
+        console.log("Return:")
+        console.log(json)
         res.send(json)
-    } catch (error) {
+    } else {
         // Hit an error while trying to generate a next message. API may be down or we may have exceeded context length, either way we respond with an error code.
-        res.sendStatus(502)
+        const responseCode = result.getFailureCode()
+        res.sendStatus(responseCode)
     }
 })
 
