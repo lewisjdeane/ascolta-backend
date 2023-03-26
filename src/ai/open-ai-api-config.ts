@@ -36,5 +36,5 @@ export const GENERATE_CHARACTER_REQUEST_PARAMS: GptApiConfig = {
 export const GENERATE_NEXT_CHAT_MESSAGE_REQUEST_PARAMS: GptApiConfig = {
     model: "gpt-4",
     temperature: 0.7,
-    max_tokens: 2000,
+    max_tokens: 1000,
 }
