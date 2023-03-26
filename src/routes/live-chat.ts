@@ -54,17 +54,22 @@ router.post("/next", async function (req, res) {
     const sessionId = req.body.id
     const userInput: string = decodeURIComponent(req.body.text)
 
-    const messages: ChatCompletionResponseMessage[] = await getLiveChatResponse(
-        sessionId,
-        userInput
-    )
-    const liveConversation: LiveConversationState = {
-        id: sessionId,
-        messages: messages,
-    }
-    const json = JSON.stringify(liveConversation)
     res.setHeader("Access-Control-Allow-Origin", "*")
-    res.send(json)
+    try {
+        const messages: ChatCompletionResponseMessage[] = await getLiveChatResponse(
+            sessionId,
+            userInput
+        )
+        const liveConversation: LiveConversationState = {
+            id: sessionId,
+            messages: messages,
+        }
+        const json = JSON.stringify(liveConversation)
+        res.send(json)
+    } catch (error) {
+        // Hit an error while trying to generate a next message. API may be down or we may have exceeded context length, either way we respond with an error code.
+        res.sendStatus(502)
+    }
 })
 
 interface LiveConversationSetup {
